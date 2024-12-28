@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess -O3 -DNDEBUG CMakeFiles/mp4rtphintinfo.dir/Source/C++/Apps/Mp4RtpHintInfo/Mp4RtpHintInfo.cpp.o -o mp4rtphintinfo  libap4.a

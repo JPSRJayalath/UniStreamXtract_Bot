@@ -1,0 +1,17 @@
+requests
+telethon
+yt_dlp
+xmltodict
+tqdm
+colorama
+pywidevine
+mpd_parser
+requests_toolbelt
+mega.py
+aiohttp
+aiofiles
+instaloader
+beautifulsoup4
+ffmpeg-python
+
+# ! important  pip install --upgrade tenacity

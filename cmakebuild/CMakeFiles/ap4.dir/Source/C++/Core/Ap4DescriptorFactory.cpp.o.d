@@ -1,0 +1,22 @@
+CMakeFiles/ap4.dir/Source/C++/Core/Ap4DescriptorFactory.cpp.o: \
+ /home/hp/Bento4/Source/C++/Core/Ap4DescriptorFactory.cpp \
+ /usr/include/stdc-predef.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4DescriptorFactory.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4Types.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4Config.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4EsDescriptor.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4List.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4Results.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4String.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4Descriptor.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4Expandable.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4DataBuffer.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4DynamicCast.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4DecoderConfigDescriptor.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4DecoderSpecificInfoDescriptor.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4ObjectDescriptor.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4Command.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4SLConfigDescriptor.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4Ipmp.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4ByteStream.h \
+ /home/hp/Bento4/Source/C++/Core/Ap4Interfaces.h

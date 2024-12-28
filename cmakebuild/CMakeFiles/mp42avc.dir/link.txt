@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess -O3 -DNDEBUG CMakeFiles/mp42avc.dir/Source/C++/Apps/Mp42Avc/Mp42Avc.cpp.o -o mp42avc  libap4.a

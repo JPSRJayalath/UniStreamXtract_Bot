@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wno-class-memaccess -O3 -DNDEBUG CMakeFiles/avcinfo.dir/Source/C++/Apps/AvcInfo/AvcInfo.cpp.o -o avcinfo  libap4.a
