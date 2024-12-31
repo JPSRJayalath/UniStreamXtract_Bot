@@ -1,11 +1,11 @@
 {
-    "api_id": "28600944",
-    "api_hash": "d989819aaac1d8c68a05fa83ddfe3114",
-    "bot_token" : "7864766556:AAEzEwO3ftEdUbQroIVb27UD645sFYw92BY",
-    "owner_user_id": 7567233794,
-    "secret_code": "814814",
-    "bot_channel": "@Dev_CodeNexis",
-    "reports_channel": 2389059947
+    "api_id" : "20891704",
+    "api_hash" : "4d9707a98e36730bb0002c9820099f79",
+    "bot_token" : "7928858623:AAGXXBuiQ_d3ZrMWAM-0iEhqOV_4FRW__dA",
+    "owner_user_id" : 5823155181,
+    "secret_code": "8141236",
+    "bot_channel" : "@CodeNexis_bot_universal",
+    "reports_channel": -1002389059947
   }
   
   

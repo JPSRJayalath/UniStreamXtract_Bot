@@ -1,77 +1,52 @@
 import asyncio
 import hashlib
 import json
-import re
 import shutil
-from pathlib import Path
 from urllib.parse import urlparse
-import fb
+
 import telethon as bot
 import os
 import sqlite3
-import sys
 import yt_dlp
 from concurrent.futures import ThreadPoolExecutor
-from telethon.tl.functions.channels import GetParticipantsRequest
-from telethon.tl.types import ChannelParticipantsSearch, ChannelParticipantAdmin
-from telethon.errors import ChannelPrivateError
 import contact_mega
 import encrypted_video_downloader
 import get_keys_for_decryption
-import ffmpeg_converter
-import insta
 import token_get
-import fb_dl_help
 import vdocipher_dl
-import yt_dl_help
 import btn_create
 import upload_handling
 import video_and_audio_decrypting_and_merge_video_and_audio
-import tt
-import tt_dl_help
-import fb_dl_help
+import yt_dl_help
 
-
-# Configuration settings
-with open('./config/config.json', 'r') as config_file:
-    bot_config = json.load(config_file)
+with open('./config/config.json') as configs:
+    bot_config = json.load(configs)
 
 API_ID = bot_config['api_id']
 API_HASH = bot_config['api_hash']
 BOT_TOKEN = bot_config['bot_token']
 
-robot = bot.TelegramClient("CodeNexis-UniStreamXtract", API_ID, API_HASH)
+robot = bot.TelegramClient('UniStreamXtract', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
-
-# Ensure database directory exists
-os.makedirs('./db', exist_ok=True)
+if os.path.exists('./db') == False:
+    os.mkdir('./db')
 
 # Database setup
-conn_users = sqlite3.connect('./db/UniStreamXtract_Ultimate_Client_Details.db')
+conn_users = sqlite3.connect('./db/bot_clients_details.db')
 cursor = conn_users.cursor()
 
-# Create users table
+# Create users tables
+
+# users table create
 cursor.execute(
-    """CREATE TABLE IF NOT EXISTS users (
-           user_id INTEGER PRIMARY KEY,
-           username TEXT NOT NULL,
-           full_name TEXT NOT NULL,
-           state TEXT NOT NULL
-       )"""
-)
+    """CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, username TEXT NOT NULL, full_name TEXT NOT NULL, state TEXT NOT NULL)""")
 conn_users.commit()
 
-# Create mega accounts table
+# details of mega accounts
 cursor.execute(
-    """CREATE TABLE IF NOT EXISTS mega (
-           user_id INTEGER PRIMARY KEY,
-           email TEXT NOT NULL,
-           password TEXT NOT NULL
-       )"""
-)
+    """CREATE TABLE IF NOT EXISTS mega (user_id INTEGER PRIMARY KEY, email TEXT NOT NULL, password TEXT NOT NULL)""")
 conn_users.commit()
 
-# Device file path
 device_path = './device_file/device.wvd'
 
 # Global dictionary to keep track of users in the process of providing a YouTube URL
@@ -79,30 +54,13 @@ active_requests = {}
 
 # ThreadPoolExecutor for running blocking tasks in a separate thread
 executor = ThreadPoolExecutor(max_workers=10)  # Set the number of workers for handling tasks
-
-# Semaphore to limit concurrent uploads
 semaphore = asyncio.Semaphore(10)  # Set the number of uploading workers for handling tasks
 
-# Event loop
+# Offload the blocking task to the thread pool using run_in_executor
 loop = asyncio.get_event_loop()
 
+
 # Supported Functions for Bot Processors
-
-
-
-# Create buttons for commands
-buttons = [
-    [bot.Button.text('Start 🌟'), bot.Button.text('Help ❓')],
-    [bot.Button.text('Youtube 📺')],
-    [bot.Button.text('Facebook 📘'), bot.Button.text('Tiktok 🎵')],
-    [bot.Button.text('Vip 👑')],
-    [bot.Button.text('Get my ID 🆔'), bot.Button.text('Contact admin 📞')],
-    [bot.Button.text('Connect Mega Cloud ☁️')],
-    [bot.Button.text('Cancel ❌'), bot.Button.text('About me 🧑‍💻')],
-    [bot.Button.text('📖 How to Use 🛠️✨')]
-]
-
-
 
 # Check Username & Name is Changed
 async def check_username_fullname_change(user_id, username, fullname):
@@ -142,20 +100,9 @@ async def saved_mega_acc_handle(user_id, password, option: int):
             return e
 
 
-async def list_all_files(folder_path):
-    try:
-        # Get only the file names (without the full path)
-        files = [file.name for file in Path(folder_path).rglob('*.*')]
-        return files
-    except FileNotFoundError as f:
-        return str(f)  # Return the error message if the folder does not exist
-    except Exception as e:
-        return str(e)  # Return the error message for any other error
-
-
 # Check if user is in group
 async def check_user_in_group(username_to_check):
-    group_username = bot_config['bot_channel'] # Replace with the group or channel username
+    group_username = "@Dev_CodeNexis"  # Replace with the group or channel username
 
     try:
         group = await robot.get_entity(group_username)
@@ -465,324 +412,6 @@ async def uploading_mega_process(event, user_id, callback_event, video_title, fr
 
 # Bot Process
 
-# Facebook command handler
-async def facebook(event):
-    user_id = event.sender_id
-
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
-    # Ask user for YouTube URL
-    yt_link = await event.reply("Please provide a FaceBook URL or type /cancel to exit. ⏳📹🔗")
-
-    async with robot.conversation(user_id) as conv:
-        active_requests[user_id] = True
-        try:
-            response = await conv.wait_event(
-                bot.events.NewMessage(from_users=user_id),
-                timeout=300  # 5 minutes timeout
-            )
-
-            # Check for cancellation
-            if response.raw_text.strip().lower() == "/cancel":
-                await yt_link.edit("🚫 You have canceled the request. Exiting the Facebook process.")
-                active_requests.pop(user_id, None)  # Safely remove the user from active requests
-                return
-
-            fb_url_send = response.text.strip()
-            if not (fb_url_send.startswith("http") and "facebook.com" in fb_url_send):
-                await event.reply("The provided URL is not a valid Facebook video link.")
-                return
-
-            fb_url = await loop.run_in_executor(executor, fb.resolve_redirect, fb_url_send)
-
-            if "reel" in fb_url:
-                await event.reply("Reels are not supported with this method. Please provide a valid Facebook video link. If you’d like to download reels, please use **Quick Mode.**")
-                return
-
-            # Fetch video information
-            video_info = await loop.run_in_executor(executor, fb_dl_help.fetch_facebook_video_info, fb_url)
-            if "error" in video_info:
-                await event.reply(f"Error fetching video details: {video_info['error']}")
-                return
-            else:
-                # Format the response
-                    response_text = (
-                        f"**Title:** {video_info['title']}\n"
-                        f"**Uploader:** {video_info['uploader']}\n"
-                        f"**Duration:** {video_info['duration']} seconds\n"
-                        f"**URL:** [Watch on FaceBook]({video_info['url']})\n"
-                        f"**Thumbnail:** ![Thumbnail]({video_info['thumbnail']})\n"
-                        f"**View Count:** {video_info['view_count']}\n"
-                        f"**Like Count:** {video_info['like_count']}\n"
-                        f"**Dislike Count:** {video_info['dislike_count']}\n"
-                        f"**Is Live:** {'Yes' if video_info['is_live'] else 'No'}\n"
-                    )
-            await event.reply(response_text)
-
-            video_id = await asyncio.create_task(fb_dl_help.select_fb_format(event, robot, video_info["formats"]))
-            if not video_id:
-                return
-
-            # Download the video
-            download_status = await loop.run_in_executor(executor, fb_dl_help.fb_dl, user_id, fb_url, video_id)
-            if download_status == "Done":
-                if user_id == bot_config['owner_user_id']:
-
-                    upload = await asyncio.create_task(
-                        upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
-                                                    f'./downloads/fb/{user_id}/',
-                                                    'UniStreamXtracted_Stream.mp4',
-                                                    f'{video_info["title"]}', 'doc'))
-                    if upload == 'Done':
-                        await event.reply("Done")
-                    elif upload == 201:
-                        await robot.send_message(user_id, "Your video size is too large. ⚠️🎥📦")
-                        buttons = [[bot.Button.inline('Mega', b'mega')]]
-                        message = await event.respond('Choose one of the options: 📝🔘',
-                                                        buttons=buttons)
-
-                        # Listener for callback queries (button presses)
-                        @robot.on(bot.events.CallbackQuery)
-                        async def handle_button_click(callback_event):
-                            try:
-                                if callback_event.data == b'mega':
-                                    await uploading_mega_process(event, user_id, callback_event,
-                                                                    video_info['title'],
-                                                                    f'./downloads/fb/{user_id}/',
-                                                                    f'./downloads/fb/mega{user_id}/',
-                                                                    'M')
-                            except Exception as e:
-                                await robot.send_message(user_id, f"Error: {e}")
-                            finally:
-                                # Remove the handler after processing
-                                robot.remove_event_handler(handle_button_click,
-                                                            bot.events.CallbackQuery)
-                                shutil.rmtree(f'./downloads/fb/{user_id}/')
-                                if os.path.exists(f'./downloads/fb/mega{user_id}/') == True:
-                                    shutil.rmtree(f'./downloads/fb/mega{user_id}/')
-                        # Ensure handler is added only once
-                        robot.add_event_handler(handle_button_click, bot.events.CallbackQuery)
-                else:
-                    if os.path.exists(f'./downloads/fb/{user_id}/{video_info["title"]}.mp4') == True:
-
-                        upload = await asyncio.create_task(
-                            upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
-                                                        f'./downloads/fb/{user_id}/',
-                                                        'UniStreamXtracted_Stream.mp4',
-                                                        f'{video_info["title"]}', 'vid'))
-
-                    else:
-
-                        file_res, file_search_res = await upload_handling.search_file_name('.mp4',
-                                                                                            f'./downloads/fb/{user_id}/')
-                        if file_search_res == "Done":
-                            upload = await asyncio.create_task(
-                                upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
-                                                            f'./downloads/fb/{user_id}/',
-                                                            file_res,
-                                                            f'{video_info["title"]}', 'vid'))
-                        else:
-                            await robot.send_message(user_id, "❌ File not found. ⚠️")
-                            return
-                    if upload == 'Done':
-                        await event.reply("Done")
-                    elif upload == 201:
-                        await robot.send_message(user_id, "Your video size is too large. ⚠️🎥📦")
-                        buttons = [[bot.Button.inline('Mega', b'mega')]]
-                        message = await event.respond('Choose one of the options: 📝🔘',
-                                                        buttons=buttons)
-
-                        # Listener for callback queries (button presses)
-                        @robot.on(bot.events.CallbackQuery)
-                        async def handle_button_click(callback_event):
-                            try:
-                                if callback_event.data == b'mega':
-                                    await uploading_mega_process(event, user_id, callback_event,
-                                                                    video_info['title'],
-                                                                    f'./downloads/fb/{user_id}/',
-                                                                    f'./downloads/fb/mega{user_id}/',
-                                                                    'M')
-
-                            except Exception as e:
-                                await robot.send_message(user_id, f"Error: {e}")
-                            finally:
-                                # Remove the handler after processing
-                                robot.remove_event_handler(handle_button_click,
-                                                            bot.events.CallbackQuery)
-                                shutil.rmtree(f'./downloads/fb/{user_id}/')
-                                if os.path.exists(f'./downloads/fb/mega{user_id}/') == True:
-                                    shutil.rmtree(f'./downloads/fb/mega{user_id}/')
-
-                        # Ensure handler is added only once
-                        robot.add_event_handler(handle_button_click, bot.events.CallbackQuery)
-            else:
-                await event.reply(f"Download failed: {download_status}")
-        except asyncio.TimeoutError:
-            await event.reply("You took too long to respond. Please try again.")
-        finally:
-            active_requests.pop(user_id, None)  # Cleanup after task completion
-
-
-# Tiktok command handler
-async def tiktok(event):
-    user_id = event.sender_id
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
-    # Ask user for YouTube URL
-    yt_link = await event.reply("Please provide a Tiktok URL or type /cancel to exit. ⏳📹🔗")
-
-    async with robot.conversation(user_id) as conv:
-        active_requests[user_id] = True
-        try:
-            response = await conv.wait_event(
-                bot.events.NewMessage(from_users=user_id),
-                timeout=300  # 5 minutes timeout
-            )
-
-            # Check for cancellation
-            if response.raw_text.strip().lower() == "/cancel":
-                await yt_link.edit("🚫 You have canceled the request. Exiting the Tiktok process.")
-                active_requests.pop(user_id, None)  # Safely remove the user from active requests
-                return
-
-            tt_url_send = response.text.strip()
-            if not (tt_url_send.startswith("http") and "tiktok.com" in tt_url_send):
-                await event.reply("The provided URL is not a valid Tiktok video link.")
-                return
-
-            tt_url = await loop.run_in_executor(executor, tt.resolve_redirect, tt_url_send)
-
-            # Fetch video information
-            video_info = await loop.run_in_executor(executor, tt_dl_help.fetch_facebook_video_info, tt_url)
-            if "error" in video_info:
-                await event.reply(f"Error fetching video details: {video_info['error']}")
-                return
-            else:
-                # Format the response
-                    response_text = (
-                        f"**Title:** {video_info['title']}\n"
-                        f"**Uploader:** {video_info['uploader']}\n"
-                        f"**Duration:** {video_info['duration']} seconds\n"
-                        f"**URL:** [Watch on FaceBook]({video_info['url']})\n"
-                        f"**Thumbnail:** ![Thumbnail]({video_info['thumbnail']})\n"
-                        f"**View Count:** {video_info['view_count']}\n"
-                        f"**Like Count:** {video_info['like_count']}\n"
-                        f"**Dislike Count:** {video_info['dislike_count']}\n"
-                        f"**Is Live:** {'Yes' if video_info['is_live'] else 'No'}\n"
-                    )
-            await event.reply(response_text)
-
-            video_id = await asyncio.create_task(tt_dl_help.select_fb_format(event, robot, video_info["formats"]))
-            if not video_id:
-                return
-
-
-            # Download the video
-            download_status = await loop.run_in_executor(executor, tt_dl_help.fb_dl, user_id, tt_url, video_id)
-            if download_status == "Done":
-                if user_id == bot_config['owner_user_id']:
-
-                    upload = await asyncio.create_task(
-                        upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
-                                                    f'./downloads/tiktok/{user_id}/',
-                                                    'UniStreamXtracted_Stream.mp4',
-                                                    f'{video_info["title"]}', 'doc'))
-                    if upload == 'Done':
-                        await event.reply("Done")
-                    elif upload == 201:
-                        await robot.send_message(user_id, "Your video size is too large. ⚠️🎥📦")
-                        buttons = [[bot.Button.inline('Mega', b'mega')]]
-                        message = await event.respond('Choose one of the options: 📝🔘',
-                                                        buttons=buttons)
-
-                        # Listener for callback queries (button presses)
-                        @robot.on(bot.events.CallbackQuery)
-                        async def handle_button_click(callback_event):
-                            try:
-                                if callback_event.data == b'mega':
-                                    await uploading_mega_process(event, user_id, callback_event,
-                                                                    video_info['title'],
-                                                                    f'./downloads/tiktok/{user_id}/',
-                                                                    f'./downloads/tiktok/mega{user_id}/',
-                                                                    'M')
-                            except Exception as e:
-                                await robot.send_message(user_id, f"Error: {e}")
-                            finally:
-                                # Remove the handler after processing
-                                robot.remove_event_handler(handle_button_click,
-                                                            bot.events.CallbackQuery)
-                                shutil.rmtree(f'./downloads/tiktok/{user_id}/')
-                                if os.path.exists(f'./downloads/tiktok/mega{user_id}/') == True:
-                                    shutil.rmtree(f'./downloads/tiktok/mega{user_id}/')
-                        # Ensure handler is added only once
-                        robot.add_event_handler(handle_button_click, bot.events.CallbackQuery)
-                else:
-                    if os.path.exists(f'./downloads/fb/{user_id}/{video_info["title"]}.mp4') == True:
-
-                        upload = await asyncio.create_task(
-                            upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
-                                                        f'./downloads/tiktok/{user_id}/',
-                                                        'UniStreamXtracted_Stream.mp4',
-                                                        f'{video_info["title"]}', 'vid'))
-
-                    else:
-
-                        file_res, file_search_res = await upload_handling.search_file_name('.mp4',
-                                                                                            f'./downloads/tiktok/{user_id}/')
-                        if file_search_res == "Done":
-                            upload = await asyncio.create_task(
-                                upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
-                                                            f'./downloads/tiktok/{user_id}/',
-                                                            file_res,
-                                                            f'{video_info["title"]}', 'vid'))
-                        else:
-                            await robot.send_message(user_id, "❌ File not found. ⚠️")
-                            return
-                    if upload == 'Done':
-                        await event.reply("Done")
-                    elif upload == 201:
-                        await robot.send_message(user_id, "Your video size is too large. ⚠️🎥📦")
-                        buttons = [[bot.Button.inline('Mega', b'mega')]]
-                        message = await event.respond('Choose one of the options: 📝🔘',
-                                                        buttons=buttons)
-
-                        # Listener for callback queries (button presses)
-                        @robot.on(bot.events.CallbackQuery)
-                        async def handle_button_click(callback_event):
-                            try:
-                                if callback_event.data == b'mega':
-                                    await uploading_mega_process(event, user_id, callback_event,
-                                                                    video_info['title'],
-                                                                    f'./downloads/tiktok/{user_id}/',
-                                                                    f'./downloads/tiktok/mega{user_id}/',
-                                                                    'M')
-
-                            except Exception as e:
-                                await robot.send_message(user_id, f"Error: {e}")
-                            finally:
-                                # Remove the handler after processing
-                                robot.remove_event_handler(handle_button_click,
-                                                            bot.events.CallbackQuery)
-                                shutil.rmtree(f'./downloads/tiktok/{user_id}/')
-                                if os.path.exists(f'./downloads/tiktok/mega{user_id}/') == True:
-                                    shutil.rmtree(f'./downloads/tiktok/mega{user_id}/')
-
-                        # Ensure handler is added only once
-                        robot.add_event_handler(handle_button_click, bot.events.CallbackQuery)
-            else:
-                await event.reply(f"Download failed: {download_status}")
-        except asyncio.TimeoutError:
-            await event.reply("You took too long to respond. Please try again.")
-        finally:
-            active_requests.pop(user_id, None)  # Cleanup after task completion
-
-
 # Handler for the /youtube command
 async def youtube(event):
     user_id = event.sender_id
@@ -848,18 +477,18 @@ async def youtube(event):
 
                     if yt_dl_respond == 'Done':
                         if video_id == '0':
-                            if os.path.exists(f'./downloads/yt/{user_id}/UniStreamXtracted_Stream.m4a') == True:
+                            if os.path.exists(f'./downloads/yt/{user_id}/{video_info["title"]}.m4a') == True:
 
                                 upload = await asyncio.create_task(
                                     upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
                                                               f'./downloads/yt/{user_id}/',
-                                                              'UniStreamXtracted_Stream.m4a',
+                                                              f'{video_info["title"]}.m4a',
                                                               f'{video_info["title"]}', 'aud'))
 
                             else:
 
                                 file_res, file_search_res = await upload_handling.search_file_name('.m4a',
-                                                                                                   f'./downloads/yt/{user_id}/')
+                                                                  f'./downloads/yt/{user_id}/')
                                 if file_search_res == "Done":
                                     upload = await asyncio.create_task(
                                         upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
@@ -873,7 +502,7 @@ async def youtube(event):
                             if upload == 'Done':
                                 await event.reply("Done")
                             elif upload == 201:
-                                await robot.send_message(user_id, "Your Audio size is too large. ⚠️🎥📦")
+                                await robot.send_message(user_id, "Your video size is too large. ⚠️🎥📦")
                                 buttons = [[bot.Button.inline('Mega', b'mega')]]
                                 message = await event.respond('Choose one of the options: 📝🔘',
                                                               buttons=buttons)
@@ -895,8 +524,7 @@ async def youtube(event):
                                         robot.remove_event_handler(handle_button_click,
                                                                    bot.events.CallbackQuery)
                                         shutil.rmtree(f'./downloads/yt/{user_id}/')
-                                        if os.path.exists(f'./downloads/fb/mega{user_id}/') == True:
-                                            shutil.rmtree(f'./downloads/fb/mega{user_id}/')
+                                        shutil.rmtree(f'./downloads/yt/mega{user_id}/')
 
                                 # Ensure handler is added only once
                                 robot.add_event_handler(handle_button_click, bot.events.CallbackQuery)
@@ -908,12 +536,12 @@ async def youtube(event):
                             return
                         else:
                             if user_id == bot_config['owner_user_id']:
-                                if os.path.exists(f'./downloads/yt/{user_id}/UniStreamXtracted_Stream.mp4') == True:
+                                if os.path.exists(f'./downloads/yt/{user_id}/{video_info["title"]}.mp4') == True:
 
                                     upload = await asyncio.create_task(
                                         upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
                                                                   f'./downloads/yt/{user_id}/',
-                                                                  'UniStreamXtracted_Stream.mp4',
+                                                                  f'{video_info["title"]}.mp4',
                                                                   f'{video_info["title"]}', 'doc'))
 
                                 else:
@@ -932,7 +560,7 @@ async def youtube(event):
                                 if upload == 'Done':
                                     await event.reply("Done")
                                 elif upload == 201:
-                                    await robot.send_message(user_id, "Your Video size is too large. ⚠️🎥📦")
+                                    await robot.send_message(user_id, "Your video size is too large. ⚠️🎥📦")
                                     buttons = [[bot.Button.inline('Mega', b'mega')]]
                                     message = await event.respond('Choose one of the options: 📝🔘',
                                                                   buttons=buttons)
@@ -954,18 +582,17 @@ async def youtube(event):
                                             robot.remove_event_handler(handle_button_click,
                                                                        bot.events.CallbackQuery)
                                             shutil.rmtree(f'./downloads/yt/{user_id}/')
-                                            if os.path.exists(f'./downloads/fb/mega{user_id}/') == True:
-                                                shutil.rmtree(f'./downloads/fb/mega{user_id}/')
+                                            shutil.rmtree(f'./downloads/yt/mega{user_id}/')
 
                                     # Ensure handler is added only once
                                     robot.add_event_handler(handle_button_click, bot.events.CallbackQuery)
                             else:
-                                if os.path.exists(f'./downloads/yt/{user_id}/UniStreamXtracted_Stream.mp4') == True:
+                                if os.path.exists(f'./downloads/yt/{user_id}/{video_info["title"]}.mp4') == True:
 
                                     upload = await asyncio.create_task(
                                         upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
                                                                   f'./downloads/yt/{user_id}/',
-                                                                  'UniStreamXtracted_Stream.mp4',
+                                                                  f'{video_info["title"]}.mp4',
                                                                   f'{video_info["title"]}', 'vid'))
 
                                 else:
@@ -1007,8 +634,7 @@ async def youtube(event):
                                             robot.remove_event_handler(handle_button_click,
                                                                        bot.events.CallbackQuery)
                                             shutil.rmtree(f'./downloads/yt/{user_id}/')
-                                            if os.path.exists(f'./downloads/fb/mega{user_id}/') == True:
-                                                shutil.rmtree(f'./downloads/fb/mega{user_id}/')
+                                            shutil.rmtree(f'./downloads/yt/mega{user_id}/')
 
                                     # Ensure handler is added only once
                                     robot.add_event_handler(handle_button_click, bot.events.CallbackQuery)
@@ -1028,6 +654,7 @@ async def youtube(event):
             active_requests.pop(user_id, None)  # Safely remove the user from active requests after completion
             return
 
+
 # Change User State
 async def change_user_state(event):
     user_id = event.sender_id
@@ -1037,8 +664,8 @@ async def change_user_state(event):
         return
 
     # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
+    if active_requests.get(user_id, False):
+        await event.reply("You are already using me. 🔄🤖")
         return
 
     user_id_msg = await robot.send_message(event.sender_id, "Send User ID 🆔📲:")
@@ -1171,11 +798,6 @@ async def vip(event):
 async def broadcast(event):
     user_id = event.sender_id
 
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
     if user_id == bot_config['owner_user_id']:  # Ensure that only the owner can send the broadcast
         broadcast_message = await event.respond(
             "✨ Please send the message you want to broadcast to all users, or type /cancel to exit. ✨")
@@ -1198,13 +820,15 @@ async def broadcast(event):
                 # Fetch all user IDs from the 'users' table
                 cursor.execute("SELECT user_id FROM users")
                 saved_user_ids = [row[0] for row in cursor.fetchall()]  # Get all user IDs into a list
+                conn_users.close()
 
                 # Broadcast the message to all saved user IDs
-                for sender_id in saved_user_ids:
+                for user_id in saved_user_ids:
                     try:
-                        await robot.send_message(sender_id, f"📢 {response.text}")
+                        await robot.send_message(user_id, f"📢 {response.text} 📢")
+                        print(f"Message sent to {user_id}")
                     except Exception as e:
-                        await event.respond(f"❌ An error occurred while sending the message to user {user_id}: {e} ❌")
+                        print(f"Failed to send message to {user_id}: {e}")
 
                 # Notify the owner that the broadcast is complete
                 await event.respond("✅ Broadcast message sent to all users! ✅")
@@ -1226,12 +850,6 @@ async def broadcast(event):
 # Admin_panel
 async def admin_panel(event):
     user_id = event.sender_id
-
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
 
     # Check if the user is an admin
     if user_id != bot_config['owner_user_id']:
@@ -1286,8 +904,7 @@ async def admin_panel(event):
                     "2️⃣ /broadcast - 📢 Broadcast a message to all registered users\n"
                     "3️⃣ /list_users - 🧑‍🤝‍🧑 Show the list of all registered users\n"
                     "4️⃣ /send_msg_for_grp - 📨 Send a message to a group\n"
-                    "5️⃣ /send_msg_for_client - 📩 Send a message to a specific client\n"
-                    "6️⃣ /maintenance_mode - ⚙️ Enable or disable maintenance mode (All services will be stopped)",
+                    "5️⃣ /send_msg_for_client - 📩 Send a message to a specific client",
                     parse_mode='Markdown'
                 )
                 await asyncio.sleep(30)
@@ -1315,32 +932,31 @@ async def admin_panel(event):
 # Help
 async def help(event):
     user_id = event.sender_id
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
     username = event.sender.username or 'No username'
     full_name = event.sender.first_name + (f" {event.sender.last_name}" if event.sender.last_name else "")
-    await event.reply('''**Start 🌟**\n🔹 **Purpose:** This command starts the bot. It initializes the bot and sends a welcome message or sets up the first interactions with the user.\n🔹 **Usage:** When the user sends /start, the bot will reply with a greeting and basic instructions on how to use the bot.\n\n**Help ❓**\n🔹 **Purpose:** This command provides users with a list of available commands and an explanation of what they do.\n🔹 **Usage:** When users send /help, the bot replies with a list of commands and their descriptions so users know how to interact with the bot.\n\n**Youtube 📺**\n🔹 **Purpose:** This command allows users to download YouTube videos. It will prompt the user to select the quality (like 720p, 1080p, etc.) they want for the video.\n🔹 **Usage:** The user sends /youtube, followed by a YouTube video URL. The bot will ask for the video quality and then start the download process based on the user’s selection.\n\n**Facebook 📘**\n🔹 **Purpose:** This command allows users to download Facebook videos.\n🔹 **Usage:** The user sends /facebook, followed by a Facebook video URL. The bot will process the video download based on the user's selection.\n\n**Tiktok 🎵**\n🔹 **Purpose:** This command allows users to download TikTok videos.\n🔹 **Usage:** The user sends /tiktok, followed by a TikTok video URL. The bot will then proceed to download the video.\n\n**Vip 👑**\n🔹 **Purpose:** This command is intended for VIP users. It unlocks exclusive features that are only available to users who are marked as VIP.\n🔹 **Usage:** When a VIP user sends /vip, they may gain access to special functionalities, content, or privileges that regular users don’t have.\n\n**Get my ID 🆔**\n🔹 **Purpose:** This command allows users to get their Telegram user ID.\n🔹 **Usage:** When users send /get_my_id, the bot responds with the user’s unique Telegram ID, which is often needed for support, configuration, or custom services.\n\n**Contact admin 📞**\n🔹 **Purpose:** This command provides users a way to contact the bot's admin.\n🔹 **Usage:** When users send /contact_admin, the bot either provides an admin’s contact information or forwards the user’s message to the admin for direct communication.\n\n**Connect Mega Cloud ☁️**\n🔹 **Purpose:** This command allows users to link their Mega cloud drive account to the bot.\n🔹 **Usage:** When the user sends /connect_mega_cloud, they will be prompted to authenticate or provide connection details for their Mega account. Once connected, they can upload or download files from their Mega cloud drive.\n\n**About me 🧑‍💻**\n🔹 **Purpose:** This command provides detailed information about the bot and its features.\n🔹 **Usage:** When users send /about_me, the bot will respond with a comprehensive description of its functionalities, commands, and security features.\n\n🔒 **Security Note:** When you send a password, it is not stored in plain text. It is securely hashed using SHA-256 to ensure your data remains safe.\n💡 **Note:** The bot **only uploads to Mega** and currently does not support other cloud services.\n''')
+    await event.reply('''
+        /start\n🔹 **Purpose:** This command starts the bot. It initializes the bot and sends a welcome message or sets up the first interactions with the user.\n🔹 **Usage:** When the user sends /start, the bot will reply with a greeting and basic instructions on how to use the bot.\n\n
+        /help\n🔹 **Purpose:** This command provides users with a list of available commands and an explanation of what they do.\n🔹 **Usage:** When users send /help, the bot replies with a list of commands and their descriptions so users know how to interact with the bot.\n\n
+        /youtube\n🔹 **Purpose:** This command allows users to download YouTube videos. It will prompt the user to select the quality (like 720p, 1080p, etc.) they want for the video.\n🔹 **Usage:** The user sends /youtube, followed by a YouTube video URL. The bot will ask for the video quality and then start the download process based on the user’s selection.\n\n
+        /vip\n🔹 **Purpose:** This command is intended for VIP users. It unlocks exclusive features that are only available to users who are marked as VIP.\n🔹 **Usage:** When a VIP user sends /vip, they may gain access to special functionalities, content, or privileges that regular users don’t have.\n\n
+        /get_my_id\n🔹 **Purpose:** This command allows users to get their Telegram user ID.\n🔹 **Usage:** When users send /get_my_id, the bot responds with the user’s unique Telegram ID, which is often needed for support, configuration, or custom services.\n\n
+        /contact_admin\n🔹 **Purpose:** This command provides users a way to contact the bot's admin.\n🔹 **Usage:** When users send /contact_admin, the bot either provides an admin’s contact information or forwards the user’s message to the admin for direct communication.\n\n
+        /connect_mega_cloud\n🔹 **Purpose:** This command allows users to link their Mega cloud drive account to the bot.\n🔹 **Usage:** When the user sends /connect_mega_cloud, they will be prompted to authenticate or provide connection details for their Mega account. Once connected, they can upload or download files from their Mega cloud drive.\n\n
+        /about_me\n🔹 **Purpose:** This command provides detailed information about the bot and its features.\n🔹 **Usage:** When users send /about_me, the bot will respond with a comprehensive description of its functionalities, commands, and security features.\n\n
+        🔒 **Security Note:** When you send a password, it is not stored in plain text. It is securely hashed using SHA-256 to ensure your data remains safe.\n\n
+        💡 **Note:** The bot **only uploads to Mega** and currently does not support other cloud services.
+
+    ''')
 
 
 # Get Client ID
 async def get_my_id(event):
     user_id = event.sender_id
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
     await event.reply(f"🆔 **Your User ID:** `{user_id}`", parse_mode='markdown')
 
 
 async def contact_admin(event):
     user_id = event.sender_id
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
     active_requests[user_id] = True  # Mark the user as active
     username = event.sender.username or 'No username'
     full_name = event.sender.first_name + (f" {event.sender.last_name}" if event.sender.last_name else "")
@@ -1397,10 +1013,6 @@ async def contact_admin(event):
 
 async def send_msg_for_client(event):
     user_id = event.sender_id
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
 
     if user_id != bot_config['owner_user_id']:
         await event.reply("🚫 You don't have permission to access the command. 🔒")
@@ -1470,11 +1082,6 @@ async def send_msg_for_client(event):
 async def send_msg_for_grp(event):
     user_id = event.sender_id
 
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
     active_requests[user_id] = True  # Mark the user as using the bot
 
     if user_id == bot_config['owner_user_id']:
@@ -1516,31 +1123,12 @@ async def send_msg_for_grp(event):
         await event.reply("🚫 You don't have permission to use this command! 🔒")
 
 
-async def how_to_use(event):
-    user_id = event.sender_id
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
-    await robot.send_message(user_id, "✨ **How to Use UniStreamXtract Ultimate Bot** ✨\n\n🔹 **Choose Your Way to Download:**\nIf you want to download videos with your preferred quality, simply use the buttons for platforms like **YouTube**, **Facebook**, or **TikTok**. 🎥🎶\n\n🔹 **Quick Mode for Simplicity:**\nDon’t want to select a quality? Use **Quick Mode**! Just send the video link directly to the bot, and it will automatically download the best quality for you. 🚀 No commands, no buttons—just send the link!\n\n🔹 **Instagram Downloads Made Easy:**\nLooking to download Instagram reels or posts? Don’t worry! Instagram supports only **Quick Mode** since videos on Instagram usually have a single quality available. 📸\n\n🔔 **Note:** For Instagram, simply send the video link, and UniStreamXtract will handle the rest—quick and seamless! 💡\n\nStart now and enjoy effortless video downloading! 🎉")
-
-
+# List users
 async def list_users(event):
-    user_id = event.sender_id
-    if user_id != bot_config['owner_user_id']:  # Replace with your admin user ID
+    if event.sender_id != bot_config['owner_user_id']:  # Replace with your admin user ID
         await event.reply("🚫 You are not authorized to view the user list. 🔒")
         return
 
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
-    # Initialize counters and lists
-    user_list = []
-    vip_list = []
-    
     cursor.execute("SELECT * FROM users")
     users = cursor.fetchall()
 
@@ -1548,28 +1136,29 @@ async def list_users(event):
         await event.reply("❌ No users found. 🔍")
         return
 
-    # Process users
-    for user in users:
-        if user[3] == 'user':
-            user_list.append(f"{len(user_list) + 1}. `{user[0]}` - {user[3]} - {user[2]} (@{user[1]})")
-        else:
-            vip_list.append(f"{len(vip_list) + 1}. `{user[0]}` - {user[3]} - {user[2]} (@{user[1]})")
+    user_list = "\n".join(
+    [f"`{i}. {u[0]}` - {u[3]} - {u[2]} (@{u[1]})" for i, u in enumerate(users, start=1) if u[3] == 'user']
+    )
+    vip_list = "\n".join(
+        [f"`{i}. {u[0]}` - {u[3]} - {u[2]} (@{u[1]})" for i, u in enumerate(users, start=1) if u[3] != 'user']
+    )
 
     # Provide default messages if lists are empty
-    vip_list_output = "\n".join(vip_list) if vip_list else "❌ No VIP users found. 🔍"
-    user_list_output = "\n".join(user_list) if user_list else "❌ No regular users found. 🔍"
+    if not vip_list:
+        vip_list = "❌ No VIP users found. 🔍"
+    if not user_list:
+        user_list = "❌ No regular users found. 🔍"
 
     # Send the message
     await event.reply(
         f"📝 **Registered Users:**\n\n"
-        f"**VIP Users**\n{vip_list_output}\n\n"
-        f"**Other Users**\n{user_list_output}"
+        f"**VIP Users**\n{vip_list}\n\n"
+        f"**Other Users**\n{user_list}"
     )
 
 
 async def vdocipher(event):
     user_id = event.sender_id
-
 
     # Fetch user's state from the database
     cursor.execute("SELECT state FROM users WHERE user_id = ?", (user_id,))
@@ -1578,11 +1167,6 @@ async def vdocipher(event):
     if user_state[0] not in ['vip', 'v.vip']:
         await event.reply(f"🚫 You don't have permission. Your current state is: {user_state[0]} 🔒")
         del active_requests[user_id]
-        return
-    
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
         return
 
     # Step 1: Request VdoCipher token URL
@@ -1746,12 +1330,7 @@ async def vdocipher(event):
 async def about_me(event):
     user_id = event.sender_id
 
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
-    await robot.send_message(user_id, '''About @UniStreamXtract_Ultimate_bot\n
+    await robot.send_message(user_id, '''About @UniStreamXtract_bot\n
         \n
         👨‍💻 Powered by: CodeNexis Team\n
         🐍 Programmed Language: Python\n
@@ -1781,11 +1360,6 @@ async def about_me(event):
 
 async def connect_mega_cloud(event):
     user_id = event.sender_id
-
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
 
     cursor.execute("SELECT user_id FROM mega WHERE user_id=?", (user_id,))
     mega_user_exists = cursor.fetchone() is not None
@@ -1876,22 +1450,11 @@ async def connect_mega_cloud(event):
 
 
 async def handle_delete_account(callback_event, user_id):
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
     try:
-        # Retrieve the saved email from the database
-        cursor.execute(
-            "SELECT email FROM mega WHERE user_id = ?",
-            (user_id,))
-        mega_acc_details = cursor.fetchone()
-
         async with robot.conversation(callback_event.sender_id, timeout=300) as conv:
             # Prompt the user for their current password
             ask_password = await callback_event.edit(
-                f"Please provide your Mega account password for the,\nemail 🔑📧: {mega_acc_details[0]}\n\n📝(Type /cancel to cancel)")
+                "🔐 Please provide your current password. 📝(Type /cancel to cancel)")
 
             # Wait for the user's password response
             password_response = await conv.wait_event(bot.events.NewMessage(from_users=callback_event.sender_id),
@@ -1936,16 +1499,10 @@ async def handle_delete_account(callback_event, user_id):
 
 async def handle_change_password(callback_event, user_id):
     try:
-         # Retrieve the saved email from the database
-        cursor.execute(
-            "SELECT email FROM mega WHERE user_id = ?",
-            (user_id,))
-        mega_acc_details = cursor.fetchone()
-
         async with robot.conversation(callback_event.sender_id, timeout=300) as conv:
             # Prompt for the current password
             ask_current_password = await callback_event.edit(
-                f"Please provide your Mega account password for the,\nemail 🔑📧: {mega_acc_details[0]}\n\n📝(Type /cancel to cancel)")
+                "🔐 Please provide your current password. 📝(Type /cancel to cancel)")
             password_response = await conv.wait_event(bot.events.NewMessage(from_users=callback_event.sender_id),
                                                       timeout=300)
 
@@ -2027,101 +1584,9 @@ async def handle_change_password(callback_event, user_id):
         await callback_event.reply(f"❌ An error occurred: {e} ⚠️")
 
 
-
-async def maintenance_mode(event):
-    user_id = event.sender_id
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-    active_requests[user_id] = True
-
-    if user_id != bot_config['owner_user_id']:
-        await event.reply("🚫 You don't have permission to access the command. 🔒")
-        return
-
-    try:
-        # Ask for the secret code
-        ask_secret_code = await event.reply(
-            "Please enter the secret code to access the admin panel or type /cancel to exit. 🔑🛠️"
-        )
-
-        # Define a filter for capturing the user's next message
-        def user_filter(e):
-            return e.sender_id == user_id and e.chat_id == event.chat_id
-
-        # Use an event handler to wait for the user's next message
-        @event.client.on(bot.events.NewMessage(func=user_filter))
-        async def secret_code_listener(response_event):
-            # Remove the listener after capturing the message
-            event.client.remove_event_handler(secret_code_listener, bot.events.NewMessage)
-
-            # Function to delete the message asynchronously
-            async def delete_message(message):
-                try:
-                    await message.delete()
-                except Exception as e:
-                    # Log failure but don't block the main flow
-                    await event.reply(f"Failed to delete the message: {e} ❌🗑️⚠️")
-
-            # Create a task for deleting the response message without blocking other operations
-            asyncio.create_task(delete_message(response_event.message))
-
-            # Handle the cancellation
-            if response_event.text.strip().lower() == "/cancel":
-                await ask_secret_code.edit("🚫 Request cancelled. You have exited the admin panel.")
-                return
-
-            # Secret code validation
-            secret_code = response_event.text.strip()
-            if secret_code != bot_config['secret_code']:
-                await event.reply("❌ Incorrect secret code. Access denied. ❌")
-                return
-
-            # Proceed if the code matches
-            try:
-                # Send message to the bot's channel
-                await robot.send_message(bot_config['bot_channel'], "🚧 **Maintenance Mode:** The bot is currently under maintenance. 🛠️")
-                await event.reply("✅ Broadcast message sent to Channel! ✅")
-            except Exception as e:
-                await event.reply(f"❌ An error occurred while sending the message to the channel: {e} ⚠️")
-
-            # Fetch all user IDs from the 'users' table
-            cursor.execute("SELECT user_id FROM users")
-            saved_user_ids = [row[0] for row in cursor.fetchall()]  # Get all user IDs into a list
-            conn_users.close()
-
-            try:
-                # Broadcast the maintenance message to all saved user IDs
-                for sender_id in saved_user_ids:
-                    if sender_id == bot_config['owner_user_id']:
-                        return
-                    await robot.send_message(sender_id, "🚧 **Maintenance Mode:** The bot is currently under maintenance. 🛠️")
-            except Exception as e:
-                await event.respond(f"❌ An error occurred while sending the message to user {sender_id}: {e} ❌")
-                return
-            finally:
-                # Notify the owner that the broadcast is complete
-                await event.reply("✅ Broadcast message sent to all users! ✅")
-                # Send maintenance mode notification to the bot owner
-                await event.reply("✅ **Maintenance Mode:** The bot is now in maintenance mode. 🛠️")
-
-                # Terminate the program and stop all services
-                print("Bot disconnected. Closing session...")
-                conn_users.close()
-                await robot.disconnect()
-
-    except Exception as e:
-        await event.reply(f"❌ An error occurred: {e} ⚠️")
-
-
 # Start
 async def start(event):
     user_id = event.sender_id
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
     check_user = await check_user_in_group(user_id)
     username = event.sender.username or 'No username'
     full_name = event.sender.first_name + (f" {event.sender.last_name}" if event.sender.last_name else "")
@@ -2132,7 +1597,7 @@ async def start(event):
 
     if result:
         await check_username_fullname_change(user_id, username, full_name)
-        await event.reply(f"👋 Hello {full_name}! How can I help you? 😊", buttons=buttons)
+        await event.reply(f"👋 Hello {full_name}! How can I help you? 😊")
 
 
 async def quick_mode_dl(event, url, output_folder):
@@ -2144,20 +1609,11 @@ async def quick_mode_dl(event, url, output_folder):
 
         # Define options for yt-dlp
         ydl_opts = {
-            'format': 'bv*[vcodec=avc1]+ba[acodec=aac]/mp4',  # Restrict to H.264 video and AAC audio
-            'merge_output_format': 'mp4',  # Ensure the output file is MP4
-            'outtmpl': os.path.join(output_folder, 'UniStreamXtracted_Stream.%(ext)s'),
-            # Filename with title and resolution
-            'quiet': True,  # Suppress output in the terminal
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]',  # Only MP4 video and M4A audio
+            'merge_output_format': 'mp4',  # Output in MP4 format after merging
+            'outtmpl': os.path.join(output_folder, '%(title)s.%(ext)s'),  # Output template
+            'quiet': True,  # Suppress output
             'no_warnings': True,  # Suppress warnings
-            'retries': 5,  # Retry on errors
-            'noprogress': True,  # Disable progress bar
-            'postprocessors': [
-                {
-                    'key': 'FFmpegVideoConvertor',
-                    'preferedformat': 'mp4',  # Ensure final format is MP4
-                }
-            ]
         }
 
         # Use asyncio.to_thread to ensure yt_dlp download runs in a separate thread
@@ -2192,10 +1648,6 @@ async def quick_mode_dl(event, url, output_folder):
 
 async def quick_mode_yt(event, message, user_id):
     active_requests[user_id] = True
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
     await event.reply("⏳ Wait...")
     output_dir = f'./downloads/yt/{user_id}/'
     if os.path.exists(output_dir) == False:
@@ -2203,23 +1655,34 @@ async def quick_mode_yt(event, message, user_id):
     try:
         res, video_info = await quick_mode_dl(event, message, output_dir)
         if res == "Done":
-            if os.path.exists(f'./downloads/yt/{user_id}/UniStreamXtracted_Stream.mp4') == True:
+            if os.path.exists(f'./downloads/yt/{user_id}/{video_info["title"]}.mp4') == True:
 
                 upload = await asyncio.create_task(
                     upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
                                               f'./downloads/yt/{user_id}/',
-                                              'UniStreamXtracted_Stream.mp4',
+                                              f'{video_info["title"]}.mp4',
                                               f'{video_info["title"]}', 'vid'))
 
-                if upload == 'Done':
-                    await robot.send_message(user_id, "🎥 Here is your video! 🎉")
-                else:
-                    await event.reply(
-                        "❌ Your video is too large. Quick option not supported for downloading large videos. Use /youtube and try it. 🎥🔄")
-
             else:
-                await robot.send_message(user_id, "❌ An error occurred: ⚠️")
 
+                file_res, file_search_res = await upload_handling.search_file_name('.mp4',
+                                                                  f'./downloads/yt/{user_id}/')
+                if file_search_res == "Done":
+                    upload = await asyncio.create_task(
+                        upload_handling.send_file(user_id, BOT_TOKEN, semaphore,
+                                                  f'./downloads/yt/{user_id}/',
+                                                  file_res,
+                                                  f'{video_info["title"]}', 'vid'))
+                else:
+                    await robot.send_message(user_id, f"❌ File not found.{file_res} ⚠️")
+                    return
+            await robot.send_message(user_id, "🎥 Here is your video! 🎉")
+            if upload == 201:
+                await event.reply(
+                    "❌ Your video is too large. Quick option not supported for downloading large videos. Use /youtube and try it. 🎥🔄")
+                return
+        else:
+            await event.reply("❌ An error occurred. ⚠️")
     except Exception as e:
         await event.reply(f"❌ An error occurred: {e} ⚠️")
     finally:
@@ -2238,170 +1701,36 @@ async def cancel(event):
         await event.reply("⚠️ You have no active requests to cancel.")
 
 
-async def instagram(event, message, user_id):
-    active_requests[user_id] = True
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-    upload_results = []
-    await event.reply("⏳ Wait...")
-    output_dir = f'./downloads/insta/{user_id}/'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
-
-    try:
-        result_insta, title = await asyncio.to_thread(insta.download_instagram_content, message, output_dir)
-        await event.reply(str(title))
-
-        if result_insta == 0:
-            files = await list_all_files(output_dir)
-
-            for file in files:
-                file_extension = file.split('.')[1].lower()  # Get file extension and convert to lower case
-                if file_extension in ['mp4']:
-                    upload_res = await asyncio.create_task(
-                        upload_handling.send_files(user_id, BOT_TOKEN, semaphore, output_dir, file, file.split('.')[0],
-                                                   'vid'))
-                    if upload_res == 0:
-                        upload_results.append('Done')
-                    else:
-                        upload_results.append('Failed')
-                elif file_extension in ['jpg', 'jpeg', 'png']:
-                    upload_res = await asyncio.create_task(
-                        upload_handling.send_files(user_id, BOT_TOKEN, semaphore, output_dir, file, file.split('.')[0],
-                                                   'img'))
-                    if upload_res == 0:
-                        upload_results.append('Done')
-                    else:
-                        upload_results.append('Failed')
-
-            # Check if there is any 'Failed' in the upload results
-            if 'Failed' in upload_results:
-                await robot.send_message(user_id, "Failed to send all images📷 and videos🎥 ❌")
-            else:
-                await robot.send_message(user_id, "All images📷 and videos🎥 have been sent ✅.")
-
-    except Exception as e:
-        await robot.send_message(user_id, f"An Error Occurred: {e}")
-    finally:
-        shutil.rmtree(output_dir)
-        del active_requests[user_id]
+async def instagram(event):
+    user_id = event.sender_id
+    
 
 
-async def quick_mode_facebok(event, message, user_id):
-    active_requests[user_id] = True
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-    await event.reply("⏳ Wait...")
-    output_dir = f'./downloads/fb/{user_id}/'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
-
-    try:
-
-        get_redirect_link = await asyncio.to_thread(fb.resolve_redirect, message)
-
-        if get_redirect_link == 1:
-            await robot.send_message(user_id, f"Error resolving URL")
-            return
-
-        video_info = await asyncio.to_thread(fb.fetch_facebook_video_info, get_redirect_link)
-        result_insta = await asyncio.to_thread(fb.download_facebook_content, get_redirect_link, output_dir)
-        if result_insta == 0:
-
-            upload_res = await asyncio.create_task(
-                upload_handling.send_files(user_id, BOT_TOKEN, semaphore, output_dir, 'UniStreamXtracted_Stream.mp4',
-                                           video_info["title"],
-                                           'vid'))
-            if upload_res != 0:
-                # Check if there is any 'Failed' in the upload results
-                await robot.send_message(user_id, "Failed to send all videos 🎥 ❌")
-            else:
-                await robot.send_message(user_id, f"All videos 🎥 have been sent ✅.")
-
-    except Exception as e:
-        await robot.send_message(user_id, f"❌ An error occurred: {e} ⚠️")
-    finally:
-        shutil.rmtree(output_dir)
-        del active_requests[user_id]
+async def facebok(event):
+    user_id = event.sender_id
 
 
-async def quick_mode_tiktok(event, message, user_id):
-    active_requests[user_id] = True
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-    await event.reply("⏳ Wait...")
-    output_dir = f'./downloads/tiktok/{user_id}/'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
-
-    try:
-
-        get_redirect_link = await asyncio.to_thread(tt.resolve_redirect, message)
-
-        if get_redirect_link == 1:
-            await robot.send_message(user_id, f"Error resolving URL")
-            return
-
-        video_info = await asyncio.to_thread(tt.fetch_tiktok_video_info, get_redirect_link)
-        result_tiktok = await asyncio.to_thread(tt.quick_mode_tt, get_redirect_link, output_dir)
-
-        if result_tiktok == 0:
-
-            files = await list_all_files(output_dir)
-
-            upload_res = await asyncio.create_task(
-                upload_handling.send_files(user_id, BOT_TOKEN, semaphore, output_dir,
-                                           f"UniStreamXtracted_Stream.mp4", video_info['title'],
-                                           'vid'))
-            if upload_res != 0:
-                # Check if there is any 'Failed' in the upload results
-                await robot.send_message(user_id, "Failed to send all images📷 and videos🎥 ❌")
-            else:
-                await robot.send_message(user_id, f"All videos 🎥 have been sent ✅.")
-
-    except Exception as e:
-        await robot.send_message(user_id, f"❌ An error occurred: {e} ⚠️")
-    finally:
-        shutil.rmtree(output_dir)
-        del active_requests[user_id]
+async def tiktok(event):
+    user_id = event.sender_id
 
 
-async def message_filter(event, message: str, user_id):
-    url_hosts = {
-        'youtube.com': quick_mode_yt,
-        'youtu.be': quick_mode_yt,
-        'instagram.com': instagram,
-        'facebook.com': quick_mode_facebok,
-        'tiktok.com': quick_mode_tiktok,
-        'vm.tiktok.com': quick_mode_tiktok,
-    }
+async def message_filter(event, message, user_id):
+    url_hosts = {'youtube.com': quick_mode_yt,
+                 'youtu.be': quick_mode_yt,
+                 'instagram.com': instagram,
+                 'facebook.com': facebok,
+                 'tiktok.com': tiktok
+                 }
 
     parsed_url = urlparse(message)
     domain = parsed_url.netloc
 
-    # Check if the domain contains the platform (e.g., instagram.com could be www.instagram.com)
-
     if domain in url_hosts:
         asyncio.create_task(url_hosts[domain](event, message, user_id))
         return
-
-    if domain.startswith("www.") or domain.startswith("web."):
-        asyncio.create_task(url_hosts[domain[4:]](event, message, user_id))
+    else:
+        await event.reply(f"💬 You said: {message} 🗣️")
         return
-
-    if domain.startswith("vm.") or domain.startswith("vt."):
-        asyncio.create_task(url_hosts[domain[3:]](event, message, user_id))
-        return
-
-    # If the domain doesn't match any of the keys, respond with the message
-    await event.reply(f"💬 You said: {domain} 🗣️", buttons=buttons)
-    return
 
 
 @robot.on(bot.events.NewMessage)
@@ -2413,9 +1742,9 @@ async def handle_message(event):
         # Handle channel messages
         if event.is_channel:
             if event.chat.broadcast:
-                await event.reply(f"This message is from a broadcast channel.{event.chat_id}")
+                await event.reply("This message is from a broadcast channel.")
             else:
-                await event.reply(f"This message is from a group or discussion channel.{event.chat_id}")
+                await event.reply("This message is from a group or discussion channel.")
             return
 
         # Handle private messages
@@ -2429,7 +1758,7 @@ async def handle_message(event):
             username = event.sender.username or 'No username'
 
             if username == 'No username':
-                await event.reply("📝 Please set a username for your Telegram account. 📱", buttons=buttons)
+                await event.reply("📝 Please set a username for your Telegram account. 📱")
                 return
 
             # Check user existence in the database
@@ -2445,15 +1774,19 @@ async def handle_message(event):
             if not user_exists:
                 await robot.send_message(
                     user_id,
-                    '''🎉 Welcome to the **UniStreamXtract Ultimate** Bot! 🎉\n\n🚀 Here’s what I can do for you:\n\n–Download YouTube Videos 📹 (up to 24-hour videos!)\n–Download Facebook Videos 📱\n–Download TikTok Videos 🎶\n–Download Instagram Videos 📸\n–Extract Audio from YouTube Videos 🎵\n–Upload Large Videos to Mega Cloud ☁️\n\n✨ And the best part? It’s totally FREE! 💸\n\n🔧 New Features:\n    •    Quick Mode: If you send a YouTube link, the bot will automatically select the best quality and upload it for you! 🎯\n    •    Multi-user processing support: Now with 10 workers ready to work for you at once! No more lag—each task is processed faster than before! ⚡👥\n    •    Download up to 24-hour long videos: Yes, now you can download even the longest YouTube videos! ⏳\n\nType a command to get started, and let’s make your video experience effortless! 🙌''', buttons=buttons
+                    '''🎉 Welcome to the UniStreamXtract Bot! 🎉\n\n🚀 Here’s what I can do for you:\n
+                    - Download YouTube Videos 📹 (up to 24-hour videos!)\n
+                    - Extract Audio from YouTube Videos 🎵\n
+                    - Upload Large Videos to Mega Cloud ☁️\n
+                    \n✨ And the best part? It’s totally FREE! 💸\n'''
                 )
                 await user_register(user_id, username, full_name)
 
-                if await check_user_in_group(user_id) == 'not_grp':
-                    await event.reply(
-                        f"👋 Hello {full_name}!\n🎉 Welcome to the bot! \n📢 Please subscribe to {bot_config['bot_channel']} to get started.", buttons=buttons
-                    )
-                    return
+            if await check_user_in_group(user_id) == 'not_grp':
+                await event.reply(
+                    f"👋 Hello {full_name}!\n🎉 Welcome to the bot! \n📢 Please subscribe to {bot_config['bot_channel']} to get started."
+                )
+                return
 
             # Ignore messages sent by the bot itself
             if event.out:
@@ -2462,42 +1795,32 @@ async def handle_message(event):
             # Command processing
             commands = {
                 '/start': start,
-                'Start 🌟': start,
-                'Help ❓': help,
-                'Youtube 📺': youtube,
-                'Facebook 📘': facebook,
-                'Tiktok 🎵': tiktok,
-                'Vip 👑': vip,
-                'Get my ID 🆔': get_my_id,
-                'Contact admin 📞': contact_admin,
-                'Connect Mega Cloud ☁️': connect_mega_cloud,
-                'About me 🧑‍💻': about_me,
-                '📖 How to Use 🛠️✨': how_to_use,
-                'Cancel ❌': cancel,
-                '/vdocipher': vdocipher,
+                '/help': help,
+                '/youtube': youtube,
+                '/vip': vip,
                 '/change_user_state': change_user_state,
                 '/broadcast': broadcast,
                 '/admin_panel': admin_panel,
                 '/list_users': list_users,
+                '/get_my_id': get_my_id,
                 '/send_msg_for_grp': send_msg_for_grp,
                 '/send_msg_for_client': send_msg_for_client,
-                '/maintenance_mode': maintenance_mode,
+                '/contact_admin': contact_admin,
+                '/vdocipher': vdocipher,
+                '/connect_mega_cloud': connect_mega_cloud,
+                '/about_me': about_me,
+                '/cancel': cancel
             }
 
             # Handle active requests
             if user_id in active_requests:
-                if message_text in ['/cancel']:
+                if message_text in ['/cancel', bot_config['secret_code']]:
                     return  # Cancel ongoing requests
+                await event.reply("⏳ You are already in progress. Please wait until the current task is completed. 🔄")
                 return
 
             # Execute commands
             if message_text in commands:
-                if await check_user_in_group(user_id) == 'not_grp':
-                    await event.reply(
-                        f"👋 Hello {full_name}!\n🎉 Welcome to the bot! \n📢 Please subscribe to {bot_config['bot_channel']} to get started.", buttons=buttons
-                    )
-                    return
-                
                 asyncio.create_task(commands[message_text](event))
                 return
             else:
@@ -2508,26 +1831,14 @@ async def handle_message(event):
         print(f"Error in handle_message: {e}")
         await event.reply("⚠️ An unexpected error occurred. Please try again later.")
 
-        
+
 
 # Start the client and run until disconnected
-async def main():    
-    try:
-        print("🤖 Bot is running... ⏳")
-        # Start the bot
-        await robot.start(bot_token=BOT_TOKEN)
-        print("Bot started successfully.")
-        await robot.run_until_disconnected()
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        print("Bot disconnected. Closing session...")
-        conn_users.close()
-        await robot.disconnect()
+async def main():
+    print("🤖 Bot is running... ⏳")
+    await robot.run_until_disconnected()
 
-# Run the async main function
+
 if __name__ == "__main__":
-    try:
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        print('Exiting gracefully...')
+    # Start the bot
+    robot.loop.run_until_complete(main())

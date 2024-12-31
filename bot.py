@@ -5,7 +5,7 @@ import re
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse
-import facebook
+import fb
 import telethon as bot
 import os
 import sqlite3
@@ -26,7 +26,7 @@ import yt_dl_help
 import btn_create
 import upload_handling
 import video_and_audio_decrypting_and_merge_video_and_audio
-import tiktok
+import tt
 import fb_dl_help
 
 
@@ -38,14 +38,14 @@ API_ID = bot_config['api_id']
 API_HASH = bot_config['api_hash']
 BOT_TOKEN = bot_config['bot_token']
 
-robot = bot.TelegramClient("CodeNexis", API_ID, API_HASH)
+robot = bot.TelegramClient("CodeNexis-UniStreamXtract", API_ID, API_HASH)
 
 
 # Ensure database directory exists
 os.makedirs('./db', exist_ok=True)
 
 # Database setup
-conn_users = sqlite3.connect('./db/users.db')
+conn_users = sqlite3.connect('./db/Robot_Clients_Details.db')
 cursor = conn_users.cursor()
 
 # Create users table
@@ -1992,14 +1992,14 @@ async def quick_mode_tiktok(event, message, user_id):
 
     try:
 
-        get_redirect_link = await asyncio.to_thread(tiktok.resolve_redirect, message)
+        get_redirect_link = await asyncio.to_thread(tt.resolve_redirect, message)
 
         if get_redirect_link == 1:
             await robot.send_message(user_id, f"Error resolving URL")
             return
 
-        video_info = await asyncio.to_thread(tiktok.fetch_tiktok_video_info, get_redirect_link)
-        result_tiktok = await asyncio.to_thread(tiktok.quick_mode_tt, get_redirect_link, output_dir)
+        video_info = await asyncio.to_thread(tt.fetch_tiktok_video_info, get_redirect_link)
+        result_tiktok = await asyncio.to_thread(tt.quick_mode_tt, get_redirect_link, output_dir)
 
         if result_tiktok == 0:
 

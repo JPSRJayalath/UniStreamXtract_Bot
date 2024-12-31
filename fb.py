@@ -1,12 +1,11 @@
+import requests
 import yt_dlp
 import os
-from datetime import datetime
-import re
-import requests
+
 
 
 # Function to fetch YouTube video details with yt-dlp (this is blocking)
-def fetch_tiktok_video_info(url):
+def fetch_facebook_video_info(url):
     ydl_opts = {
         'noplaylist': True,  # Don't fetch a playlist if the URL is a playlist
         'quiet': True,  # Suppress output to keep it clean
@@ -20,7 +19,7 @@ def fetch_tiktok_video_info(url):
             # Extract the video info
             info = ydl.extract_info(url, download=False)
             return {
-                "title": info.get("title", 'Tiktok Video'),
+                "title": info.get("title", 'Faceboook Reel'),
                 "uploader": info.get("uploader"),
                 "duration": info.get("duration"),
                 "url": info.get("webpage_url"),
@@ -28,7 +27,7 @@ def fetch_tiktok_video_info(url):
                 "formats": info.get("formats"),
                 "view_count": info.get("view_count"),
                 "like_count": info.get("like_count"),
-                "dislike_count": info.get("dislike_count"),
+                "dislike_count": info.get("dislike_count", 'No Dislikes'),
                 "channel_url": info.get("channel_url"),
                 "category": info.get("categories", []),
                 "tags": info.get("tags", []),
@@ -53,25 +52,18 @@ def resolve_redirect(real_url):
     except Exception as e:
         return 1
 
+def download_facebook_content(real_url, output_path):
+    """
+    Download the Facebook Reel using yt_dlp.
+    """
 
-def create_save_directory(save_path: str) -> None:
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-
-def validate_url(url: str) -> bool:
-    tiktok_pattern = r'https?://((?:vm|vt|www)\.)?tiktok\.com/.*'
-    return bool(re.match(tiktok_pattern, url))
-
-
-def quick_mode_tt(video_url, save_path):
-    if not validate_url(video_url):
-        return 1
+    os.makedirs(output_path, exist_ok=True)
 
     # Configure download options
     ydl_opts = {
         'format': 'bv*[vcodec=avc1]+ba[acodec=aac]/mp4',  # Restrict to H.264 video and AAC audio
         'merge_output_format': 'mp4',  # Ensure the output file is MP4
-        'outtmpl': os.path.join(save_path, 'UniStreamXtracted_Stream.%(ext)s'),  # Filename with title and resolution
+        'outtmpl': os.path.join(output_path, 'UniStreamXtracted_Stream.%(ext)s'),  # Filename with title and resolution
         'quiet': True,  # Suppress output in the terminal
         'no_warnings': True,  # Suppress warnings
         'retries': 5,  # Retry on errors
@@ -86,10 +78,7 @@ def quick_mode_tt(video_url, save_path):
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
+            ydl.download([real_url])
             return 0
-
-    except yt_dlp.utils.DownloadError as e:
-        return e
     except Exception as e:
-        return e
+        return 1

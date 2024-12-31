@@ -62,14 +62,21 @@ def yt_dl(user_id, url, audio_id, video_id):
             # Custom User-Agent string
             'socket_timeout': 30,  # Set timeout for the connection
             'retries': 10,  # Retry failed downloads multiple times
-            'outtmpl': f'./downloads/yt/{user_id}/video.%(ext)s',  # Output filename template
+            'outtmpl': f'./downloads/yt/{user_id}/UniStreamXtracted_Stream.%(ext)s',  # Output filename template
             'quiet': True,  # Suppress output to keep it clean
             'noplaylist': True,  # Disable playlist download if video is part of a playlist
             'max_filesize': None,  # No size limit, useful for long videos
             'noprogress': True,  # Show download progress
             'fragment_retries': 10,  # Retry fragment downloads multiple times
             'buffersize': 1024 * 1024 * 10,  # Set buffer size to handle larger files
+            'postprocessors': [
+            {
+                'key': 'FFmpegVideoConvertor',
+                'preferedformat': 'mp4',  # Ensure final format is MP4
+            }
+        ]
         }
+
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

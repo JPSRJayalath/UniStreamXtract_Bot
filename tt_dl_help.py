@@ -31,11 +31,11 @@ def fetch_facebook_video_info(url):
 
 # Function to download Facebook video
 def fb_dl(user_id, url, video_id):
-    folder = f'./downloads/fb/{user_id}'
+    folder = f'./downloads/tiktok/{user_id}'
     os.makedirs(folder, exist_ok=True)
 
     ydl_opts = {
-        'format': f'{video_id}+bestaudio[ext=m4a]',  # Use the selected video format
+        'format': f'{video_id}',  # Use the selected video format
         'outtmpl': f'{folder}/UniStreamXtracted_Stream.%(ext)s',  # File output template
         'quiet': True,  # Suppress output
         'retries': 10,  # Retry on failure
@@ -67,7 +67,7 @@ async def select_fb_format(event, robot, formats):
 
         if resolution not in ["Unknown", "audio only", None]:
             button_text = f"Res: {resolution.split('x')[-1]}p | Codec: {vcodec}"
-            buttons.append([tl.Button.inline(button_text, data=f"{format_id}_{resolution.split('x')[-1]}")])
+            buttons.append([tl.Button.inline(button_text, data=f"{format_id}#{resolution.split('x')[-1]}")])
 
     if not buttons:
         await event.reply("No available video formats.")
@@ -78,7 +78,7 @@ async def select_fb_format(event, robot, formats):
     selected_format_id = {"id": None}
 
     async def on_callback(callback_event):
-        callback_quaries = callback_event.data.decode("utf-8").split("_")
+        callback_quaries = callback_event.data.decode("utf-8").split("#")
         selected_format_id["id"] = callback_quaries[0]
         await callback_event.respond(f"Selected Quality: {callback_quaries[1]}p")
         selection_event.set()

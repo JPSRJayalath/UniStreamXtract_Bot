@@ -15,6 +15,7 @@ def authorize(email, password):
     except Exception as e:
         return e
 
+
 def get_storage_info(user_id, m):
 
     # Get storage info
@@ -45,7 +46,7 @@ def file_upload(user_id, email, password, local_file_path):
     available_mega_space = get_storage_info(user_id, m)
 
     if file_size / MAX_FILE_SIZE < available_mega_space:
-        custom_folder_path = '/Downloading Bot/'
+        custom_folder_path = '/UniStreamXtract_Ultimate/'
 
         # Check if the custom folder exists in MEGA, create it if it doesn't
         folder = m.find(custom_folder_path)
@@ -67,7 +68,7 @@ def get_uploaded_file_public_link(user_id, email, password, filename):
     m = mega.login(email, password)
 
     # Define the path to your file in MEGA
-    file_path_in_mega = f"/Downloading Bot/{filename}"  # Replace with your MEGA file path
+    file_path_in_mega = f"/UniStreamXtract_Ultimate/{filename}"  # Replace with your MEGA file path
 
     # Get the file and its link
     file = m.find(file_path_in_mega)
