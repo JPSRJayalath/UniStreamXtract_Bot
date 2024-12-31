@@ -1871,11 +1871,6 @@ async def connect_mega_cloud(event):
 
 
 async def handle_delete_account(callback_event, user_id):
-    # Check if the user has already used the option
-    if active_requests.get(user_id):
-        await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
-        return
-
     try:
         # Retrieve the saved email from the database
         cursor.execute(
