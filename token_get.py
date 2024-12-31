@@ -1,7 +1,5 @@
 import requests
-import vdocipher_dl
 import requests
-import shutil
 import os
 
 def token(token_url, user_id):
