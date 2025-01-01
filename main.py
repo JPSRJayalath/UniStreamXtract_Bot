@@ -481,7 +481,7 @@ async def facebook(event):
             )
 
             # Check for cancellation
-            if response.raw_text.strip().lower() == "/cancel":
+            if response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
                 await yt_link.edit("🚫 You have canceled the request. Exiting the Facebook process.")
                 active_requests.pop(user_id, None)  # Safely remove the user from active requests
                 return
@@ -641,7 +641,7 @@ async def tiktok(event):
             )
 
             # Check for cancellation
-            if response.raw_text.strip().lower() == "/cancel":
+            if response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
                 await yt_link.edit("🚫 You have canceled the request. Exiting the Tiktok process.")
                 active_requests.pop(user_id, None)  # Safely remove the user from active requests
                 return
@@ -799,7 +799,7 @@ async def youtube(event):
             )
 
             # Check for cancellation
-            if response.raw_text.strip().lower() == "/cancel":
+            if response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
                 await yt_link.edit("🚫 You have canceled the request. Exiting the YouTube process.")
                 active_requests.pop(user_id, None)  # Safely remove the user from active requests
                 return
@@ -1060,7 +1060,7 @@ async def change_user_state(event):
         user_input_id = user_response["text"]
 
         # Check if the input is valid (numeric user ID)
-        if user_input_id.strip().lower() == "/cancel":
+        if user_input_id.strip().lower() in ["/cancel", 'Cancel ❌']:
             await user_id_msg.edit("🚫 Request cancelled. You have exited the user state change.")
             # Ensure the user_id exists before trying to remove from active_requests
             active_requests.pop(user_id, None)
@@ -1186,7 +1186,7 @@ async def broadcast(event):
                 )
 
                 # Check for cancellation command
-                if response.raw_text.strip().lower() == "/cancel":
+                if response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
                     await broadcast_message.edit("🚫 Broadcast cancelled. Exiting the broadcast process.")
                     return
 
@@ -1264,7 +1264,7 @@ async def admin_panel(event):
             asyncio.create_task(delete_message(response_event.message))
 
             # Check for cancellation
-            if response_event.text.strip().lower() == "/cancel":
+            if response_event.text.strip().lower() in ["/cancel", 'Cancel ❌']:
                 active_requests.pop(user_id, None)
                 await ask_secret_code.edit("🚫 Request cancelled. You have exited the admin panel.")
                 return
@@ -1354,7 +1354,7 @@ async def contact_admin(event):
             return
 
         # Handle cancellation
-        if response.raw_text.strip() == "/cancel":
+        if response.raw_text.strip() in ["/cancel", 'Cancel ❌']:
             await response.reply("❌ **Your report submission has been canceled.** 😊")
             response_event.set()
             robot.remove_event_handler(handle_response, bot.events.NewMessage)
@@ -1415,7 +1415,7 @@ async def send_msg_for_client(event):
         client_id_response = await conv.wait_event(bot.events.NewMessage(from_users=event.sender_id))
 
         # Check for cancellation
-        if client_id_response.raw_text.strip().lower() == '/cancel':
+        if client_id_response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
             await awaiting_message.edit("🚫 You have canceled the operation.")
             del active_requests[user_id]  # Clean up active requests
             return
@@ -1435,7 +1435,7 @@ async def send_msg_for_client(event):
         message_for_client = await conv.wait_event(bot.events.NewMessage(from_users=event.sender_id), timeout=600)
 
         # Check for cancellation
-        if message_for_client.raw_text.strip().lower() == '/cancel':
+        if message_for_client.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
             await conv.send_message("🚫 You have canceled the operation.")
             del active_requests[user_id]  # Clean up active requests
             return
@@ -1480,7 +1480,7 @@ async def send_msg_for_grp(event):
         @robot.on(bot.events.NewMessage(from_users=user_id))
         async def handle_response(response):
             # If the user sends '/cancel', cancel the process
-            if response.text.strip().lower() == '/cancel':
+            if response.text.strip().lower() in ["/cancel", 'Cancel ❌']:
                 await grp_msg.edit("🚫 You have canceled the message sending process.")
                 active_requests.pop(user_id, None)  # Remove the user from active requests
                 response_event.set()
@@ -1588,7 +1588,7 @@ async def vdocipher(event):
             response = await conv.wait_event(bot.events.NewMessage(from_users=user_id))
 
             # Check for cancellation
-            if response.raw_text.strip().lower() == "/cancel":
+            if response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
                 await ask_token.edit("❌ Process canceled by user. 🛑")
                 del active_requests[user_id]
                 return
@@ -1668,7 +1668,7 @@ async def vdocipher(event):
             response = await conv.wait_event(bot.events.NewMessage(from_users=user_id))
 
             # Check for cancellation
-            if response.raw_text.strip().lower() == "/cancel":
+            if response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
                 await ask_title.edit("❌ Process canceled by user. 🛑")
                 shutil.rmtree(f'./downloads/vdocipher/{user_id}/')
                 del active_requests[user_id]
@@ -1796,7 +1796,7 @@ async def connect_mega_cloud(event):
                 response = await conv.wait_event(bot.events.NewMessage(from_users=event.sender_id))
 
                 # Check for cancellation
-                if response.raw_text.strip().lower() == "/cancel":
+                if response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
                     await ask_email.edit("❌ Process canceled by user. 🛑")
                     active_requests.pop(user_id, None)  # Safely remove from active_requests
                     return
@@ -1814,7 +1814,7 @@ async def connect_mega_cloud(event):
                 password_response = await conv.wait_event(bot.events.NewMessage(from_users=event.sender_id))
 
                 # Check for cancellation
-                if password_response.raw_text.strip().lower() == "/cancel":
+                if password_response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
                     await ask_password.edit("❌ Process canceled by user. 🛑")
                     active_requests.pop(user_id, None)  # Safely remove from active_requests
                     return
@@ -1888,7 +1888,7 @@ async def handle_delete_account(callback_event, user_id):
                                                       timeout=300)
 
             # Check for cancellation
-            if password_response.raw_text.strip().lower() == "/cancel":
+            if password_response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
                 await ask_password.edit("❌ Process canceled by user. 🛑")
                 return  # End the process
 
@@ -1968,7 +1968,7 @@ async def handle_change_password(callback_event, user_id):
                     timeout=300)
 
                 # Check for cancellation
-                if new_password_response.raw_text.strip().lower() == "/cancel":
+                if new_password_response.raw_text.strip().lower() in ["/cancel", 'Cancel ❌']:
                     await ask_new_password.edit("❌ Process canceled by user. 🛑")
                     return  # End the process
 
@@ -2058,7 +2058,7 @@ async def maintenance_mode(event):
             asyncio.create_task(delete_message(response_event.message))
 
             # Handle the cancellation
-            if response_event.text.strip().lower() == "/cancel":
+            if response_event.text.strip().lower() in ["/cancel", 'Cancel ❌']:
                 await ask_secret_code.edit("🚫 Request cancelled. You have exited the admin panel.")
                 return
 
@@ -2229,11 +2229,11 @@ async def cancel(event):
 
 
 async def instagram(event, message, user_id):
-    active_requests[user_id] = True
     # Check if the user has already used the option
     if active_requests.get(user_id):
         await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
         return
+    active_requests[user_id] = True
     upload_results = []
     await event.reply("⏳ Wait...")
     output_dir = f'./downloads/insta/{user_id}/'
@@ -2280,11 +2280,11 @@ async def instagram(event, message, user_id):
 
 
 async def quick_mode_facebok(event, message, user_id):
-    active_requests[user_id] = True
     # Check if the user has already used the option
     if active_requests.get(user_id):
         await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
         return
+    active_requests[user_id] = True
     await event.reply("⏳ Wait...")
     output_dir = f'./downloads/fb/{user_id}/'
     if not os.path.exists(output_dir):
@@ -2320,11 +2320,11 @@ async def quick_mode_facebok(event, message, user_id):
 
 
 async def quick_mode_tiktok(event, message, user_id):
-    active_requests[user_id] = True
     # Check if the user has already used the option
     if active_requests.get(user_id):
         await event.reply("You are already in progress. Please wait until the current task is completed. ⏳🔄")
         return
+    active_requests[user_id] = True
     await event.reply("⏳ Wait...")
     output_dir = f'./downloads/tiktok/{user_id}/'
     if not os.path.exists(output_dir):
@@ -2389,8 +2389,11 @@ async def message_filter(event, message: str, user_id):
         asyncio.create_task(url_hosts[domain[3:]](event, message, user_id))
         return
 
+    if message in ['/cancel', 'Cancel ❌']:
+        return
+
     # If the domain doesn't match any of the keys, respond with the message
-    await event.reply(f"💬 You said: {domain} 🗣️", buttons=buttons)
+    await event.reply(f"💬 You said: {message} 🗣️", buttons=buttons)
     return
 
 
