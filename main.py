@@ -1169,7 +1169,7 @@ async def license_catcher_for_vdocipher(event):
 
     try:
         if result[0] == 'vip' or result[0] == 'v.vip':
-            upload = await asyncio.create_task(upload_handling.send_file(user_id, BOT_TOKEN, semaphore, './DRM_Extensions/', 'Downloading Bot Widevine Licence Catcher.zip', 'Downloading Bot Widevine Licence Catcher', 'doc'))
+            upload = await asyncio.create_task(robot.send_file(user_id, './DRM_Extensions/Vdocipher Widevine Licence Catcher.zip', caption='Vdocipher Widevine Licence Catcher', force_document=True))
     except Exception as e:
         await event.reply(f"Error: {e}")
 
