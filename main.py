@@ -1167,8 +1167,11 @@ async def license_catcher_for_vdocipher(event):
     cursor.execute("SELECT state FROM users WHERE user_id = ?", (user_id,))
     result = cursor.fetchone()
 
-    if result[0] == 'vip' or result[0] == 'v.vip':
-        upload = await asyncio.to_thread(None, upload_handling.send_file, user_id, BOT_TOKEN, semaphore, './DRM_Extensions/', 'Downloading Bot Widevine Licence Catcher.zip', 'Downloading Bot Widevine Licence Catcher', 'doc')
+    try:
+        if result[0] == 'vip' or result[0] == 'v.vip':
+            upload = await asyncio.create_task(upload_handling.send_file(user_id, BOT_TOKEN, semaphore, './DRM_Extensions/', 'Downloading Bot Widevine Licence Catcher.zip', 'Downloading Bot Widevine Licence Catcher', 'doc'))
+    except Exception as e:
+        await event.reply(f"Error: {e}")
 
 
 # Broadcast with conversation and cancel functionality
@@ -2476,7 +2479,7 @@ async def handle_message(event):
                 'About me 🧑‍💻': about_me,
                 '📖 How to Use 🛠️✨': how_to_use,
                 'Cancel ❌': cancel,
-                '/license_catcher_for_vdocipher': license_catcher_for_vdocipher
+                '/license_catcher_for_vdocipher': license_catcher_for_vdocipher,
                 '/vdocipher': vdocipher,
                 '/change_user_state': change_user_state,
                 '/broadcast': broadcast,
